@@ -1,0 +1,496 @@
+{% extends "base.html" %}
+
+{% block title %}Monitor — PLC Manager{% endblock %}
+
+{% block head %}
+<style>
+  .monitor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+  .page-title {
+    font-family: var(--cond);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text2);
+  }
+  .poll-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+  }
+  .poll-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+  }
+  /* Toggle switch */
+  .switch {
+    position: relative;
+    width: 32px;
+    height: 18px;
+  }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .slider {
+    position: absolute;
+    inset: 0;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-radius: 18px;
+    transition: 0.2s;
+    cursor: pointer;
+  }
+  .slider::before {
+    content: '';
+    position: absolute;
+    left: 2px; top: 2px;
+    width: 12px; height: 12px;
+    background: var(--text2);
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+  input:checked + .slider { background: var(--accent); border-color: var(--accent); }
+  input:checked + .slider::before { transform: translateX(14px); background: #000; }
+
+  #poll-interval-select {
+    width: 80px;
+    font-size: 11px;
+    padding: 4px 6px;
+    height: 26px;
+  }
+
+  /* PLC monitor panels */
+  .plc-monitor {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+
+  .plc-mon-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .plc-conn-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text2);
+    flex-shrink: 0;
+    transition: background 0.4s;
+  }
+  .plc-conn-dot.ok     { background: var(--accent); box-shadow: 0 0 6px rgba(0,200,150,0.5); }
+  .plc-conn-dot.err    { background: var(--danger); box-shadow: 0 0 6px rgba(239,68,68,0.4); }
+  .plc-conn-dot.busy   { background: var(--warn); animation: pulse 1s infinite; }
+
+  .plc-mon-name {
+    font-family: var(--cond);
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .plc-mon-ip {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+    flex: 1;
+  }
+  .plc-mon-last {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text2);
+  }
+  .btn-read-now {
+    background: transparent;
+    border: 1px solid var(--border2);
+    color: var(--text1);
+    font-family: var(--cond);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn-read-now:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Variable rows */
+  .var-row {
+    display: grid;
+    grid-template-columns: 200px 80px 80px 1fr 180px;
+    align-items: center;
+    gap: 0;
+    padding: 0;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+  .var-row:last-child { border-bottom: none; }
+  .var-row:hover { background: rgba(255,255,255,0.02); }
+
+  .var-cell {
+    padding: 10px 14px;
+    border-right: 1px solid var(--border);
+  }
+  .var-cell:last-child { border-right: none; }
+
+  .var-row-name {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text0);
+  }
+  .var-row-addr {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text2);
+    margin-top: 2px;
+  }
+
+  /* Value display */
+  .value-display {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 400;
+    transition: color 0.3s;
+  }
+  .value-display.updated { color: var(--accent); }
+  .value-display.error   { color: var(--danger); font-size: 11px; }
+  .value-display.pending { color: var(--text2); }
+
+  /* Bool toggle */
+  .bool-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .bool-box {
+    width: 44px; height: 24px;
+    border-radius: 12px;
+    border: 1px solid var(--border2);
+    background: var(--bg3);
+    position: relative;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .bool-box::after {
+    content: '';
+    position: absolute;
+    left: 3px; top: 3px;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--text2);
+    transition: transform 0.2s, background 0.2s;
+  }
+  .bool-box.on { background: rgba(0,200,150,0.15); border-color: var(--accent); }
+  .bool-box.on::after { transform: translateX(20px); background: var(--accent); }
+
+  /* Numeric write inline */
+  .write-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .write-input {
+    width: 100px;
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 5px 8px;
+    height: 30px;
+  }
+  .write-btn {
+    background: var(--accent);
+    border: none;
+    border-radius: 3px;
+    color: #000;
+    font-family: var(--cond);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: background 0.15s;
+    height: 30px;
+  }
+  .write-btn:hover { background: var(--accent2); }
+
+  /* Column headers */
+  .var-thead {
+    display: grid;
+    grid-template-columns: 200px 80px 80px 1fr 180px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+  }
+  .var-th {
+    padding: 7px 14px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text2);
+    border-right: 1px solid var(--border);
+  }
+  .var-th:last-child { border-right: none; }
+
+  .no-vars {
+    padding: 24px;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text2);
+  }
+
+  .flash-green { animation: flashGreen 0.5s ease; }
+  @keyframes flashGreen {
+    0% { background: rgba(0,200,150,0.2); }
+    100% { background: transparent; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="monitor-header">
+  <div class="page-title">Live Monitor — {{ data.process_name }}</div>
+  <div class="poll-controls">
+    <span>Auto-poll</span>
+    <label class="switch">
+      <input type="checkbox" id="auto-poll-toggle" checked>
+      <span class="slider"></span>
+    </label>
+    <select id="poll-interval-select">
+      <option value="1000">1 s</option>
+      <option value="2000" selected>2 s</option>
+      <option value="5000">5 s</option>
+      <option value="10000">10 s</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="readAll()">↻ Read All</button>
+  </div>
+</div>
+
+{% if not data.plcs %}
+<div style="text-align:center; padding:60px; color:var(--text2); font-family:var(--mono); font-size:13px;">
+  No PLCs configured. <a href="/config" style="color:var(--accent)">Go to Configuration →</a>
+</div>
+{% endif %}
+
+{% for plc in data.plcs %}
+<div class="plc-monitor" id="mon-{{ plc.id }}">
+  <div class="plc-mon-header">
+    <span class="plc-conn-dot" id="dot-{{ plc.id }}"></span>
+    <span class="plc-mon-name">{{ plc.name }}</span>
+    <span class="plc-mon-ip">{{ plc.ip_address }} &nbsp;·&nbsp; Rack {{ plc.rack }} / Slot {{ plc.slot }}</span>
+    <span class="plc-mon-last" id="last-{{ plc.id }}">—</span>
+    <button class="btn-read-now" onclick="readPlc('{{ plc.id }}')">↻ Read</button>
+  </div>
+
+  {% if plc.variables %}
+  <div class="var-thead">
+    <div class="var-th">Variable</div>
+    <div class="var-th">Area / DB</div>
+    <div class="var-th">Type</div>
+    <div class="var-th">Value</div>
+    <div class="var-th">Write</div>
+  </div>
+
+  {% for v in plc.variables %}
+  <div class="var-row" id="row-{{ v.id }}">
+    <div class="var-cell">
+      <div class="var-row-name">{{ v.name }}</div>
+      <div class="var-row-addr">
+        {% if v.memory_area == 'DB' %}DB{{ v.db_number }}.{% endif %}{{ v.memory_area }}{{ v.start_byte }}{% if v.data_type == 'BOOL' %}.{{ v.bit_number }}{% endif %}
+      </div>
+    </div>
+    <div class="var-cell">
+      <span class="badge badge-area">{{ v.memory_area }}{% if v.memory_area == 'DB' %} {{ v.db_number }}{% endif %}</span>
+    </div>
+    <div class="var-cell">
+      <span class="badge badge-type">{{ v.data_type }}</span>
+    </div>
+    <div class="var-cell" id="val-cell-{{ v.id }}">
+      <span class="value-display pending" id="val-{{ v.id }}">—</span>
+    </div>
+    <div class="var-cell" id="write-cell-{{ v.id }}">
+      {% if v.data_type == 'BOOL' %}
+      <div class="bool-toggle" onclick="writeBool('{{ plc.id }}', '{{ v.id }}')">
+        <div class="bool-box" id="bool-{{ v.id }}"></div>
+        <span style="font-family:var(--mono); font-size:11px; color:var(--text2)" id="bool-lbl-{{ v.id }}">—</span>
+      </div>
+      {% else %}
+      <div class="write-form">
+        <input class="write-input" type="text" id="wi-{{ v.id }}" placeholder="value">
+        <button class="write-btn" onclick="writeVar('{{ plc.id }}', '{{ v.id }}')">Write</button>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+
+  {% else %}
+  <div class="no-vars">No variables — <a href="/config" style="color:var(--accent)">add variables in configuration</a></div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const plcs = {{ data.plcs | tojson }};
+let pollTimer = null;
+const currentValues = {}; // varId -> current value
+
+// ── Read ─────────────────────────────────────────────────────
+async function readPlc(plcId) {
+  const dot = document.getElementById(`dot-${plcId}`);
+  dot.className = 'plc-conn-dot busy';
+
+  const r = await api('GET', `/api/plc/${plcId}/read`);
+  const now = new Date().toLocaleTimeString();
+  const lastEl = document.getElementById(`last-${plcId}`);
+  if (lastEl) lastEl.textContent = now;
+
+  if (!r.ok) {
+    dot.className = 'plc-conn-dot err';
+    // Mark all as error
+    const plc = plcs.find(p => p.id === plcId);
+    if (plc) plc.variables.forEach(v => {
+      setValueDisplay(v.id, null, r.error, v.data_type);
+    });
+    return;
+  }
+
+  dot.className = 'plc-conn-dot ok';
+  const plc = plcs.find(p => p.id === plcId);
+  if (!plc) return;
+
+  plc.variables.forEach(v => {
+    if (v.id in r.values) {
+      const val = r.values[v.id];
+      setValueDisplay(v.id, val, null, v.data_type);
+    } else if (v.id in r.errors) {
+      setValueDisplay(v.id, null, r.errors[v.id], v.data_type);
+    }
+  });
+}
+
+async function readAll() {
+  for (const plc of plcs) {
+    readPlc(plc.id);
+  }
+}
+
+function setValueDisplay(varId, value, error, dtype) {
+  const el = document.getElementById(`val-${varId}`);
+  if (!el) return;
+
+  if (error) {
+    el.className = 'value-display error';
+    el.textContent = 'ERR: ' + error.substring(0, 40);
+    return;
+  }
+
+  const prev = currentValues[varId];
+  currentValues[varId] = value;
+
+  if (dtype === 'BOOL') {
+    const box = document.getElementById(`bool-${varId}`);
+    const lbl = document.getElementById(`bool-lbl-${varId}`);
+    if (box) {
+      box.className = value ? 'bool-box on' : 'bool-box';
+    }
+    if (lbl) lbl.textContent = value ? 'TRUE' : 'FALSE';
+    el.style.display = 'none';
+  } else {
+    el.style.display = '';
+    el.className = 'value-display';
+    if (dtype === 'REAL') {
+      el.textContent = parseFloat(value).toFixed(3);
+    } else {
+      el.textContent = value;
+    }
+    if (prev !== undefined && prev !== value) {
+      el.classList.add('updated');
+      const row = document.getElementById(`row-${varId}`);
+      if (row) {
+        row.classList.add('flash-green');
+        setTimeout(() => row.classList.remove('flash-green'), 600);
+      }
+      setTimeout(() => el.classList.remove('updated'), 1500);
+    }
+  }
+}
+
+// ── Write ─────────────────────────────────────────────────────
+async function writeVar(plcId, varId) {
+  const input = document.getElementById(`wi-${varId}`);
+  const value = input?.value?.trim();
+  if (value === '' || value === undefined) {
+    toast('Enter a value to write', 'error');
+    return;
+  }
+  const r = await api('POST', `/api/plc/${plcId}/write/${varId}`, { value });
+  if (r.ok) {
+    const plc = plcs.find(p => p.id === plcId);
+    const v = plc?.variables.find(v => v.id === varId);
+    setValueDisplay(varId, r.value, null, v?.data_type || '');
+    toast('Write successful', 'success');
+    if (input) input.value = '';
+  } else {
+    toast(`Write failed: ${r.error}`, 'error');
+  }
+}
+
+async function writeBool(plcId, varId) {
+  const current = currentValues[varId];
+  const newVal = current ? 0 : 1;
+  const r = await api('POST', `/api/plc/${plcId}/write/${varId}`, { value: newVal });
+  if (r.ok) {
+    const plc = plcs.find(p => p.id === plcId);
+    const v = plc?.variables.find(v => v.id === varId);
+    setValueDisplay(varId, r.value, null, 'BOOL');
+    toast(`${newVal ? 'SET' : 'RESET'} written`, 'success');
+  } else {
+    toast(`Write failed: ${r.error}`, 'error');
+  }
+}
+
+// ── Auto-poll ─────────────────────────────────────────────────
+function startPoll() {
+  stopPoll();
+  const interval = parseInt(document.getElementById('poll-interval-select').value);
+  pollTimer = setInterval(readAll, interval);
+}
+
+function stopPoll() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+document.getElementById('auto-poll-toggle').addEventListener('change', function() {
+  this.checked ? startPoll() : stopPoll();
+});
+
+document.getElementById('poll-interval-select').addEventListener('change', function() {
+  if (document.getElementById('auto-poll-toggle').checked) startPoll();
+});
+
+// Initial read on load
+if (plcs.length) {
+  readAll();
+  startPoll();
+}
+</script>
+{% endblock %}

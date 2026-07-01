@@ -1,0 +1,470 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration — PLC Manager{% endblock %}
+
+{% block head %}
+<style>
+  .page-title {
+    font-family: var(--cond);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .page-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+  /* Process name edit */
+  .process-edit {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 28px;
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 18px;
+  }
+  .process-edit-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-right: 4px;
+  }
+  #process-name-input {
+    flex: 1;
+    font-family: var(--cond);
+    font-size: 20px;
+    font-weight: 600;
+    background: transparent;
+    border: none;
+    border-bottom: 1px dashed var(--border2);
+    border-radius: 0;
+    padding: 2px 4px;
+    color: var(--text0);
+  }
+  #process-name-input:focus { border-bottom-color: var(--accent); box-shadow: none; }
+
+  /* PLC cards */
+  .plc-card {
+    background: var(--bg1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .plc-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+  }
+  .plc-card-header:hover { background: var(--bg2); }
+
+  .plc-indicator {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text2);
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .plc-indicator.connected { background: var(--accent); box-shadow: 0 0 6px rgba(0,200,150,0.5); }
+  .plc-indicator.error { background: var(--danger); }
+
+  .plc-name {
+    font-family: var(--cond);
+    font-size: 16px;
+    font-weight: 600;
+    flex: 1;
+  }
+  .plc-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+    display: flex;
+    gap: 12px;
+  }
+  .plc-meta span { display: flex; align-items: center; gap: 4px; }
+
+  .plc-body { padding: 16px 18px; }
+  .plc-body.collapsed { display: none; }
+
+  /* Variable table */
+  .var-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+  .var-table th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text2);
+    padding: 6px 10px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .var-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .var-table tr:last-child td { border-bottom: none; }
+  .var-table tr:hover td { background: var(--bg2); }
+
+  .var-name { font-family: var(--mono); color: var(--text0); }
+  .var-addr { font-family: var(--mono); font-size: 11px; color: var(--text2); }
+
+  /* Add forms */
+  .add-plc-form {
+    background: var(--bg2);
+    border: 1px dashed var(--border2);
+    border-radius: 6px;
+    padding: 18px;
+    margin-bottom: 8px;
+  }
+  .add-var-form {
+    background: var(--bg2);
+    border: 1px dashed var(--border2);
+    border-radius: 5px;
+    padding: 14px;
+  }
+
+  .btn-test {
+    background: transparent;
+    border: 1px solid var(--info);
+    color: #60a5fa;
+    font-family: var(--cond);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-test:hover { background: rgba(59,130,246,0.1); }
+
+  .toggle-icon { transition: transform 0.2s; font-size: 16px; color: var(--text2); }
+  .plc-card.open .toggle-icon { transform: rotate(90deg); }
+
+  .empty-row td {
+    text-align: center;
+    color: var(--text2);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 14px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-title">Process Configuration</div>
+
+<!-- Process Name -->
+<div class="process-edit">
+  <span class="process-edit-label">Process:</span>
+  <input type="text" id="process-name-input" value="{{ data.process_name }}">
+  <button class="btn btn-ghost btn-sm" onclick="saveProcessName()">Save</button>
+</div>
+
+<!-- PLC Section -->
+<div class="section-header">
+  <span class="section-label">PLC Devices</span>
+  <div class="section-line"></div>
+  <button class="btn btn-primary btn-sm" onclick="toggleAddPlc()">+ Add PLC</button>
+</div>
+
+<!-- Add PLC form -->
+<div class="add-plc-form" id="add-plc-form" style="display:none">
+  <div class="form-grid" id="new-plc-grid">
+    <div class="form-field">
+      <label>PLC Name *</label>
+      <input type="text" id="new-plc-name" placeholder="e.g. Main CPU">
+    </div>
+    <div class="form-field">
+      <label>IP Address *</label>
+      <input type="text" id="new-plc-ip" placeholder="192.168.0.1">
+    </div>
+    <div class="form-field">
+      <label>Rack</label>
+      <input type="number" id="new-plc-rack" value="0" min="0">
+    </div>
+    <div class="form-field">
+      <label>Slot</label>
+      <input type="number" id="new-plc-slot" value="1" min="0">
+    </div>
+  </div>
+  <div style="display:flex; gap:8px; margin-top:12px">
+    <button class="btn btn-primary btn-sm" onclick="addPlc()">Add PLC</button>
+    <button class="btn btn-ghost btn-sm" onclick="toggleAddPlc()">Cancel</button>
+  </div>
+</div>
+
+<!-- PLC list -->
+<div id="plc-list">
+  {% for plc in data.plcs %}
+  <div class="plc-card" id="plc-{{ plc.id }}">
+    <div class="plc-card-header" onclick="togglePlc('{{ plc.id }}')">
+      <span class="plc-indicator" id="ind-{{ plc.id }}"></span>
+      <span class="plc-name">{{ plc.name }}</span>
+      <div class="plc-meta">
+        <span>📡 {{ plc.ip_address }}</span>
+        <span>R:{{ plc.rack }} / S:{{ plc.slot }}</span>
+        <span>{{ plc.variables | length }} var(s)</span>
+      </div>
+      <button class="btn-test" onclick="event.stopPropagation(); testPlc('{{ plc.id }}')">Test</button>
+      <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deletePlc('{{ plc.id }}')">✕</button>
+      <span class="toggle-icon">▶</span>
+    </div>
+    <div class="plc-body collapsed" id="body-{{ plc.id }}">
+      <!-- Variables table -->
+      <table class="var-table">
+        <thead>
+          <tr>
+            <th>Variable Name</th>
+            <th>Area</th>
+            <th>DB#</th>
+            <th>Type</th>
+            <th>Byte</th>
+            <th>Bit</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="vars-{{ plc.id }}">
+          {% if plc.variables %}
+            {% for v in plc.variables %}
+            <tr id="var-row-{{ v.id }}">
+              <td class="var-name">{{ v.name }}</td>
+              <td><span class="badge badge-area">{{ v.memory_area }}</span></td>
+              <td class="var-addr">{{ v.db_number or '—' }}</td>
+              <td><span class="badge badge-type">{{ v.data_type }}</span></td>
+              <td class="var-addr">{{ v.start_byte }}</td>
+              <td class="var-addr">{{ v.bit_number if v.data_type == 'BOOL' else '—' }}</td>
+              <td>
+                <button class="btn btn-danger btn-sm" onclick="deleteVar('{{ plc.id }}', '{{ v.id }}')">✕</button>
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr class="empty-row" id="empty-{{ plc.id }}">
+              <td colspan="7">No variables defined yet</td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+
+      <!-- Add variable form -->
+      <div id="add-var-toggle-{{ plc.id }}">
+        <button class="btn btn-ghost btn-sm" onclick="showAddVar('{{ plc.id }}')">+ Add Variable</button>
+      </div>
+      <div class="add-var-form" id="add-var-form-{{ plc.id }}" style="display:none">
+        <div class="form-grid">
+          <div class="form-field">
+            <label>Variable Name *</label>
+            <input type="text" id="vn-name-{{ plc.id }}" placeholder="e.g. Motor_Speed">
+          </div>
+          <div class="form-field">
+            <label>Memory Area *</label>
+            <select id="vn-area-{{ plc.id }}" onchange="handleAreaChange('{{ plc.id }}')">
+              <option value="DB">DB (Data Block)</option>
+              <option value="M">M (Merkers)</option>
+              <option value="I">I (Inputs)</option>
+              <option value="Q">Q (Outputs)</option>
+              <option value="T">T (Timers)</option>
+              <option value="C">C (Counters)</option>
+            </select>
+          </div>
+          <div class="form-field" id="vn-db-field-{{ plc.id }}">
+            <label>DB Number</label>
+            <input type="number" id="vn-db-{{ plc.id }}" placeholder="1" min="1">
+          </div>
+          <div class="form-field">
+            <label>Data Type *</label>
+            <select id="vn-type-{{ plc.id }}" onchange="handleTypeChange('{{ plc.id }}')">
+              <option value="BOOL">BOOL</option>
+              <option value="BYTE">BYTE</option>
+              <option value="INT">INT</option>
+              <option value="DINT">DINT</option>
+              <option value="WORD">WORD</option>
+              <option value="DWORD">DWORD</option>
+              <option value="REAL">REAL</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Start Byte *</label>
+            <input type="number" id="vn-byte-{{ plc.id }}" placeholder="0" min="0">
+          </div>
+          <div class="form-field" id="vn-bit-field-{{ plc.id }}">
+            <label>Bit (0–7)</label>
+            <input type="number" id="vn-bit-{{ plc.id }}" placeholder="0" min="0" max="7" disabled>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:12px">
+          <button class="btn btn-primary btn-sm" onclick="addVariable('{{ plc.id }}')">Add Variable</button>
+          <button class="btn btn-ghost btn-sm" onclick="hideAddVar('{{ plc.id }}')">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div id="no-plcs" style="text-align:center; padding:40px; color:var(--text2); font-family:var(--mono); font-size:13px;">
+    No PLCs configured yet. Click "Add PLC" to get started.
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Process name ──────────────────────────────────────────────
+async function saveProcessName() {
+  const name = document.getElementById('process-name-input').value.trim();
+  if (!name) return;
+  const r = await api('POST', '/api/process_name', { name });
+  if (r.ok) {
+    toast(`Process name saved: ${r.name}`, 'success');
+  }
+}
+
+// ── PLC CRUD ──────────────────────────────────────────────────
+function toggleAddPlc() {
+  const f = document.getElementById('add-plc-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+}
+
+async function addPlc() {
+  const name = document.getElementById('new-plc-name').value.trim();
+  const ip   = document.getElementById('new-plc-ip').value.trim();
+  const rack = document.getElementById('new-plc-rack').value;
+  const slot = document.getElementById('new-plc-slot').value;
+  if (!name || !ip) { toast('Name and IP address are required', 'error'); return; }
+
+  const r = await api('POST', '/api/plc', { name, ip_address: ip, rack, slot });
+  if (r.ok) {
+    toast(`PLC "${r.plc.name}" added`, 'success');
+    location.reload();
+  } else {
+    toast(r.error, 'error');
+  }
+}
+
+async function deletePlc(id) {
+  if (!confirm('Delete this PLC and all its variables?')) return;
+  const r = await api('DELETE', `/api/plc/${id}`);
+  if (r.ok) {
+    document.getElementById(`plc-${id}`)?.remove();
+    toast('PLC removed', 'info');
+  }
+}
+
+async function testPlc(id) {
+  toast('Testing connection…', 'info');
+  const ind = document.getElementById(`ind-${id}`);
+  const r = await api('GET', `/api/plc/${id}/test`);
+  if (r.ok) {
+    ind.classList.add('connected');
+    ind.classList.remove('error');
+    toast('Connection successful', 'success');
+  } else {
+    ind.classList.add('error');
+    ind.classList.remove('connected');
+    toast(`Connection failed: ${r.error}`, 'error');
+  }
+}
+
+// ── PLC card expand/collapse ──────────────────────────────────
+function togglePlc(id) {
+  const body = document.getElementById(`body-${id}`);
+  const card = document.getElementById(`plc-${id}`);
+  body.classList.toggle('collapsed');
+  card.classList.toggle('open');
+}
+
+// ── Variable CRUD ─────────────────────────────────────────────
+function showAddVar(plcId) {
+  document.getElementById(`add-var-toggle-${plcId}`).style.display = 'none';
+  document.getElementById(`add-var-form-${plcId}`).style.display = 'block';
+}
+function hideAddVar(plcId) {
+  document.getElementById(`add-var-toggle-${plcId}`).style.display = '';
+  document.getElementById(`add-var-form-${plcId}`).style.display = 'none';
+}
+
+function handleAreaChange(plcId) {
+  const area = document.getElementById(`vn-area-${plcId}`).value;
+  const dbField = document.getElementById(`vn-db-field-${plcId}`);
+  dbField.style.opacity = area === 'DB' ? '1' : '0.4';
+  document.getElementById(`vn-db-${plcId}`).disabled = area !== 'DB';
+}
+
+function handleTypeChange(plcId) {
+  const type = document.getElementById(`vn-type-${plcId}`).value;
+  const bitInput = document.getElementById(`vn-bit-${plcId}`);
+  bitInput.disabled = type !== 'BOOL';
+  if (type !== 'BOOL') bitInput.value = '';
+}
+
+async function addVariable(plcId) {
+  const name    = document.getElementById(`vn-name-${plcId}`).value.trim();
+  const area    = document.getElementById(`vn-area-${plcId}`).value;
+  const db      = document.getElementById(`vn-db-${plcId}`).value;
+  const dtype   = document.getElementById(`vn-type-${plcId}`).value;
+  const byte_   = document.getElementById(`vn-byte-${plcId}`).value;
+  const bit     = document.getElementById(`vn-bit-${plcId}`).value;
+
+  if (!name || byte_ === '') { toast('Name and start byte are required', 'error'); return; }
+
+  const payload = {
+    name, memory_area: area, db_number: db,
+    data_type: dtype, start_byte: byte_, bit_number: bit
+  };
+
+  const r = await api('POST', `/api/plc/${plcId}/variable`, payload);
+  if (r.ok) {
+    toast(`Variable "${r.variable.name}" added`, 'success');
+    // Remove empty row if present
+    document.getElementById(`empty-${plcId}`)?.remove();
+    // Append row
+    const tbody = document.getElementById(`vars-${plcId}`);
+    const v = r.variable;
+    const tr = document.createElement('tr');
+    tr.id = `var-row-${v.id}`;
+    tr.innerHTML = `
+      <td class="var-name">${v.name}</td>
+      <td><span class="badge badge-area">${v.memory_area}</span></td>
+      <td class="var-addr">${v.db_number || '—'}</td>
+      <td><span class="badge badge-type">${v.data_type}</span></td>
+      <td class="var-addr">${v.start_byte}</td>
+      <td class="var-addr">${v.data_type === 'BOOL' ? v.bit_number : '—'}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteVar('${plcId}', '${v.id}')">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+    hideAddVar(plcId);
+  } else {
+    toast(r.error, 'error');
+  }
+}
+
+async function deleteVar(plcId, varId) {
+  const r = await api('DELETE', `/api/plc/${plcId}/variable/${varId}`);
+  if (r.ok) {
+    document.getElementById(`var-row-${varId}`)?.remove();
+    toast('Variable removed', 'info');
+  }
+}
+</script>
+{% endblock %}
