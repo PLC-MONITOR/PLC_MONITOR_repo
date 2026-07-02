@@ -85,7 +85,7 @@ variables) works fully without Snap7.
   - Data type: BOOL, BYTE, INT, DINT, WORD, DWORD, REAL
   - Start byte
   - Bit number (only for BOOL)
-![variable list](images/full.png)
+![variable list](images/full_list.png)
 ## Page 2 — Live Monitor
 
 - Auto-polls all PLCs at configurable interval (1s, 2s, 5s, 10s)
@@ -94,7 +94,7 @@ variables) works fully without Snap7.
 - Numeric variables: type value and click Write
 - Changed values flash green on update
 - Per-PLC manual read button
-![Monitoring list](images/full_list.jpg)
+![Monitoring list](images/full.jpg)
 ## Supported Siemens PLCs
 
 All S7 PLCs supported by Snap7:
