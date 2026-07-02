@@ -75,9 +75,13 @@ variables) works fully without Snap7.
 ## Page 1 — Configuration
 
 - Set the process name
-- ![process name](images/process_name.png)
+
+   ![process name](images/process_name.png)
+  
 - Add PLCs: name, IP, rack, slot
-- ![add plc](images/add_plc.png)
+  
+   ![add plc](images/add_plc.png)
+  
 - Test connectivity per PLC
 - Add variables per PLC:
   - Memory area: DB, M, I, Q, T, C
@@ -85,7 +89,9 @@ variables) works fully without Snap7.
   - Data type: BOOL, BYTE, INT, DINT, WORD, DWORD, REAL
   - Start byte
   - Bit number (only for BOOL)
-![variable list](images/full_list.jpg)
+    
+   ![variable list](images/full_list.jpg)
+  
 ## Page 2 — Live Monitor
 
 - Auto-polls all PLCs at configurable interval (1s, 2s, 5s, 10s)
@@ -94,7 +100,8 @@ variables) works fully without Snap7.
 - Numeric variables: type value and click Write
 - Changed values flash green on update
 - Per-PLC manual read button
-![Monitoring list](images/full.png)
+  
+   ![Monitoring list](images/full.png)
 ## Supported Siemens PLCs
 
 All S7 PLCs supported by Snap7:
